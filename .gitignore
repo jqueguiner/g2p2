@@ -11,3 +11,6 @@ bindings/python/target/
 bindings/python/dist/
 *.egg-info/
 __pycache__/
+
+# Bundled models (copied/downloaded at wheel-build time)
+bindings/python/python/g2p2/models/

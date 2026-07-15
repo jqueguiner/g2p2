@@ -23,6 +23,16 @@ jobs:
           - { os: windows-latest, target: x64 }
     steps:
       - uses: actions/checkout@v4
+      # Bundle all language models into the wheel (default install ships offline).
+      - name: bundle models
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p bindings/python/python/g2p2/models
+          gh release download models-v1 --repo "$GITHUB_REPOSITORY" \
+            --dir bindings/python/python/g2p2/models --pattern '*.g2p' --clobber
+          echo "bundled $(ls bindings/python/python/g2p2/models | wc -l) models"
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: bindings/python

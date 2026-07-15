@@ -1,0 +1,129 @@
+"""g2p2 — grapheme-to-phoneme for the 100 Whisper languages.
+
+Low-level (explicit model file):
+
+    from g2p2 import Model
+    m = Model.load("fr.g2p")
+    m.phonemize("bonjour")            # 'bɔ̃ʒuʁ'
+
+High-level (pick by language — model auto-loaded, downloaded + cached once):
+
+    import g2p2
+    g2p2.phonemize("hello", language="en")
+    g2p2.word_similarity("light", "night", language="en", method="fast")
+
+Model resolution order for a language `xx`:
+  1. ``$G2P2_MODELS/xx.g2p``           (a directory you point at)
+  2. ``<cache>/g2p2/xx.g2p``           (XDG cache, else ~/.cache)
+  3. download ``$G2P2_MODELS_URL/xx.g2p`` into the cache (GitHub release by default)
+"""
+
+from __future__ import annotations
+
+import functools
+import os
+import urllib.request
+from pathlib import Path
+
+from ._native import Model, __version__
+from ._native import distance as _distance
+from ._native import similarity as _similarity
+
+_MODELS_URL = os.environ.get(
+    "G2P2_MODELS_URL",
+    "https://github.com/jqueguiner/g2p2/releases/download/models-v1",
+)
+
+__all__ = [
+    "Model",
+    "phonemize",
+    "phonemize_many",
+    "word_similarity",
+    "similarity",
+    "distance",
+    "get_model",
+    "model_path",
+    "__version__",
+]
+
+
+def _bundled_dir() -> Path | None:
+    """Directory of models shipped inside the wheel (present in the default
+    `pip install g2p2`), or None for the lean/no-data install."""
+    d = Path(__file__).resolve().parent / "models"
+    return d if d.is_dir() else None
+
+
+def _cache_dir() -> Path:
+    base = os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")
+    return Path(base) / "g2p2"
+
+
+def model_path(language: str) -> str:
+    """Resolve `language`'s ``.g2p`` blob. Order: ``$G2P2_MODELS`` dir ->
+    models bundled in the wheel -> download+cache from the release."""
+    # 1. explicit override directory
+    override = os.environ.get("G2P2_MODELS")
+    if override:
+        p = Path(override) / f"{language}.g2p"
+        if p.exists():
+            return str(p)
+    # 2. bundled with the package (default install ships all languages)
+    bundled = _bundled_dir()
+    if bundled:
+        p = bundled / f"{language}.g2p"
+        if p.exists():
+            return str(p)
+    # 3. download into the user cache, once
+    d = _cache_dir()
+    p = d / f"{language}.g2p"
+    if not p.exists():
+        d.mkdir(parents=True, exist_ok=True)
+        url = f"{_MODELS_URL}/{language}.g2p"
+        tmp = p.with_suffix(".g2p.part")
+        try:
+            urllib.request.urlretrieve(url, tmp)
+            tmp.replace(p)
+        except Exception as e:  # noqa: BLE001
+            tmp.unlink(missing_ok=True)
+            raise FileNotFoundError(
+                f"no model for language {language!r}: not bundled, {p} missing, and "
+                f"download from {url} failed ({e}). Set $G2P2_MODELS to a directory "
+                f"with {language}.g2p, or build it: "
+                f"`cargo run -p xtask -- build {language}`."
+            ) from e
+    return str(p)
+
+
+@functools.lru_cache(maxsize=None)
+def get_model(language: str) -> Model:
+    """Load (and cache in-process) the model for a Whisper language code."""
+    return Model.load(model_path(language))
+
+
+def phonemize(word: str, language: str) -> str:
+    """IPA for `word` in `language`."""
+    return get_model(language).phonemize(word)
+
+
+def phonemize_many(words, language: str):
+    """IPA for many `words` in `language`."""
+    return get_model(language).phonemize_many(list(words))
+
+
+def word_similarity(a: str, b: str, language: str, method: str = "weighted") -> float:
+    """Phonemize `a` and `b` in `language`, then score similarity (0..1).
+
+    method: "weighted" (default, articulatory features) or "fast" (Levenshtein).
+    """
+    return get_model(language).word_similarity(a, b, method)
+
+
+def similarity(a: str, b: str, method: str = "weighted") -> float:
+    """Similarity (0..1) between two IPA strings. Language-agnostic."""
+    return _similarity(a, b, method)
+
+
+def distance(a: str, b: str, method: str = "weighted") -> float:
+    """Distance (0..1) between two IPA strings. Language-agnostic."""
+    return _distance(a, b, method)
