@@ -51,7 +51,7 @@ fn load_map(code: &str) -> Vec<(String, String)> {
         .map(|(o, p)| (o.trim().to_lowercase(), p.trim().to_string()))
         .filter(|(o, _)| !o.is_empty())
         .collect();
-    m.sort_by(|a, b| b.0.chars().count().cmp(&a.0.chars().count()));
+    m.sort_by_key(|(o, _)| std::cmp::Reverse(o.chars().count()));
     m
 }
 
