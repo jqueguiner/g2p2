@@ -16,7 +16,7 @@ print(m.phonemize_many(["chat", "eau"])) # ['ʃa', 'o']
 ```
 
 Model blobs (`*.g2p`) are built from WikiPron / epitran / LLM data — see the
-[main repo](https://github.com/jqueguiner/g2p). Download a language's `.g2p`
+[main repo](https://github.com/jqueguiner/g2p2). Download a language's `.g2p`
 from the GitHub releases or build with `cargo run -p xtask -- build-all`.
 
 ## API
