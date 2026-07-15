@@ -9,6 +9,7 @@
 
 use pyo3::exceptions::PyIOError;
 use pyo3::prelude::*;
+use pyo3::wrap_pyfunction;
 
 /// A loaded G2P model. Construct with `Model.load(path)` or `Model.from_bytes(b)`.
 #[pyclass]
@@ -45,14 +46,45 @@ impl Model {
         words.iter().map(|w| g2p::phonemize(&self.inner, w)).collect()
     }
 
+    /// Phonemize two words, then score their pronunciation similarity (0..1).
+    #[pyo3(signature = (a, b, method = "weighted"))]
+    fn word_similarity(&self, a: &str, b: &str, method: &str) -> f32 {
+        let ia = g2p::phonemize(&self.inner, a);
+        let ib = g2p::phonemize(&self.inner, b);
+        g2p::similarity(&ia, &ib, method_of(method))
+    }
+
     fn __repr__(&self) -> String {
         format!("<g2p2.Model {} tokens>", self.inner.tokens.len())
     }
+}
+
+fn method_of(s: &str) -> g2p::Method {
+    match s {
+        "fast" | "levenshtein" | "lev" => g2p::Method::Levenshtein,
+        _ => g2p::Method::Weighted, // default: better
+    }
+}
+
+/// Phonetic similarity between two IPA strings (0..1). method: "weighted" (default) | "fast".
+#[pyfunction]
+#[pyo3(signature = (a, b, method = "weighted"))]
+fn similarity(a: &str, b: &str, method: &str) -> f32 {
+    g2p::similarity(a, b, method_of(method))
+}
+
+/// Phonetic distance between two IPA strings (0..1). method: "weighted" (default) | "fast".
+#[pyfunction]
+#[pyo3(signature = (a, b, method = "weighted"))]
+fn distance(a: &str, b: &str, method: &str) -> f32 {
+    g2p::similarity::distance(a, b, method_of(method))
 }
 
 #[pymodule]
 fn g2p2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Model>()?;
+    m.add_function(wrap_pyfunction!(similarity, m)?)?;
+    m.add_function(wrap_pyfunction!(distance, m)?)?;
     Ok(())
 }

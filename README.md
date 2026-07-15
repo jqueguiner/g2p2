@@ -62,11 +62,56 @@ fetch → (silver) → align (many-to-many EM) → train (weighted Witten-Bell n
 - **Model**: interpolated n-gram stored per-gram (runtime backoff is a clean recursion), quantized to varint ids + i16 logprobs.
 - **Decode**: exact lexicon → (logographic ? per-char lexicon : n-gram beam) → fallback.
 
+## Phonetic similarity
+
+Score how similar two words *sound* by comparing their IPA. Two methods, chosen
+by the caller; **`Weighted` is the default (better)**:
+
+- **`Weighted`** — substitution cost = articulatory feature distance (p/b cost
+  less than p/k). Graded, phonetically meaningful.
+- **`Levenshtein`** — 0/1 per differing phoneme. Faster, coarse.
+
+```rust
+use g2p::{phonemize, similarity, Method};
+let a = phonemize(&model, "light");      // laɪt
+let b = phonemize(&model, "night");      // naɪt
+similarity(&a, &b, Method::Weighted);    // 0.95   (default)
+similarity(&a, &b, Method::Levenshtein); // 0.75
+```
+
+```python
+m.word_similarity("light", "night")          # 0.95  (weighted default)
+m.word_similarity("light", "night", "fast")  # 0.75  (levenshtein)
+g2p2.similarity("pat", "bat")                # 0.967
+```
+
+### Benchmark
+
+`cargo run --release -p xtask -- bench data/en.g2p` (single core):
+
+| method | speed | throughput | distinct scores | near>far |
+|--------|-------|-----------|-----------------|----------|
+| **Weighted** (default) | ~600 ns/op | 1.7 M ops/s/core | **186** | 12/12 |
+| Levenshtein (fast) | ~395 ns/op | 2.5 M ops/s/core | 13 | 12/12 |
+
+Both rank near-vs-far pairs correctly; **Weighted gives ~14× finer resolution**
+(186 vs 13 distinct scores) — it distinguishes degrees of similarity that
+Levenshtein flattens, at ~1.5× the cost. **Hardware:** CPU-only, single-thread,
+O(n·m) DP per pair (n,m = phonemes/word) → a few KB freed immediately, no heap
+growth; embarrassingly parallel across pairs.
+
 ## Tests & coverage
 
 ```bash
 cargo test --workspace
-cargo llvm-cov -p g2p --summary-only   # >95% line coverage enforced in CI
+cargo llvm-cov -p g2p --summary-only   # >95% line coverage enforced in CI + pre-commit
+```
+
+A git **pre-commit hook** (`.githooks/pre-commit`) runs fmt + clippy + tests and
+fails the commit if `g2p` line coverage drops below 95%. Enable it once:
+
+```bash
+git config core.hooksPath .githooks
 ```
 
 ## Data licenses
