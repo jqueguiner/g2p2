@@ -40,59 +40,67 @@ Linux/macOS/Windows, Python 3.8+.
 pip install g2p2
 ```
 
-### 1. Get a model file
+### Quickstart — just pick a language
 
-Phonemization needs a compiled `.g2p` blob for the language. Build one from the
-repo (models are not shipped in the wheel — they're data, not code):
-
-```bash
-git clone https://github.com/jqueguiner/g2p2 && cd g2p2
-cargo run --release -p xtask -- fetch fr    # download WikiPron data
-cargo run --release -p xtask -- build fr    # -> data/fr.g2p
-```
-
-### 2. Phonemize
-
-```python
-from g2p2 import Model
-
-fr = Model.load("data/fr.g2p")
-fr.phonemize("bonjour")                 # 'bɔ̃ʒuʁ'
-fr.phonemize_many(["chat", "eau"])      # ['ʃa', 'o']
-
-# logographic works too
-zh = Model.load("data/zh.g2p")
-zh.phonemize("你好")                    # 'ni²¹⁴⁻³⁵xɑʊ̯²¹⁴⁻²¹⁽⁴⁾'
-```
-
-### 3. Sound-alike similarity
+`pip install g2p2` **bundles all 100 language models** (~81 MB wheel) — works
+fully offline, no files to manage. (A language missing from the wheel is
+downloaded + cached on first use as a fallback.)
 
 ```python
 import g2p2
 
-en = g2p2.Model.load("data/en.g2p")
-
-# compare two words by how they SOUND (0..1)
-en.word_similarity("light", "night")          # 0.95  (weighted, default)
-en.word_similarity("light", "night", "fast")  # 0.75  (levenshtein)
-
-# or compare IPA strings directly
-g2p2.similarity("pat", "bat")                 # 0.967
-g2p2.distance("pat", "bat")                   # 0.033
+g2p2.phonemize("hello", language="en")                # 'hɛloʊ'
+g2p2.phonemize("bonjour", language="fr")              # 'bɔ̃ʒuʁ'
+g2p2.phonemize("你好", language="zh")                 # 'ni²¹⁴⁻³⁵xɑʊ̯…'
+g2p2.phonemize_many(["chat", "eau"], language="fr")   # ['ʃa', 'o']
 ```
+
+Language codes are the 100 Whisper codes (`en`, `fr`, `zh`, `de`, `ja`, …).
+
+### Sound-alike similarity
+
+```python
+# compare two words by how they SOUND (0..1), in a given language
+g2p2.word_similarity("light", "night", language="en")                 # 0.95  weighted (default)
+g2p2.word_similarity("light", "night", language="en", method="fast")  # 0.75  levenshtein
+
+# or compare IPA strings directly (language-agnostic)
+g2p2.similarity("pat", "bat")                          # 0.967
+g2p2.distance("pat", "bat")                            # 0.033
+```
+
+### Explicit model files (offline / bundled)
+
+Skip the download by pointing at a directory of `.g2p` blobs, or load one
+directly:
+
+```python
+import os
+os.environ["G2P2_MODELS"] = "/path/to/models"   # dir with en.g2p, fr.g2p, …
+# ...or fully explicit:
+from g2p2 import Model
+m = Model.load("data/fr.g2p")
+m.phonemize("bonjour")                            # 'bɔ̃ʒuʁ'
+```
+
+Build blobs yourself: `cargo run --release -p xtask -- build fr` → `data/fr.g2p`.
+
+**Env vars:** `G2P2_MODELS` (local model dir, checked first) · `G2P2_MODELS_URL`
+(download base, defaults to the GitHub release).
 
 ### API reference
 
 | call | returns | notes |
 |------|---------|-------|
-| `Model.load(path)` | `Model` | load a `.g2p` file |
-| `Model.from_bytes(b)` | `Model` | load from `bytes` |
-| `Model.phonemize(word)` | `str` | IPA for one word |
-| `Model.phonemize_many(words)` | `list[str]` | batch |
-| `Model.word_similarity(a, b, method="weighted")` | `float` | phonemize both, then compare |
+| `g2p2.phonemize(word, language)` | `str` | auto-loads the language model |
+| `g2p2.phonemize_many(words, language)` | `list[str]` | batch |
+| `g2p2.word_similarity(a, b, language, method="weighted")` | `float` | phonemize both, compare |
 | `g2p2.similarity(ipa_a, ipa_b, method="weighted")` | `float` | 0..1, 1=identical |
 | `g2p2.distance(ipa_a, ipa_b, method="weighted")` | `float` | 0..1, 0=identical |
-| `g2p2.__version__` | `str` | package version |
+| `g2p2.get_model(language)` | `Model` | cached `Model` for a language |
+| `Model.load(path)` / `Model.from_bytes(b)` | `Model` | explicit load |
+| `Model.phonemize(word)` / `.phonemize_many(words)` | `str` / `list[str]` | on a loaded model |
+| `Model.word_similarity(a, b, method="weighted")` | `float` | on a loaded model |
 
 `method`: `"weighted"` (default, articulatory-feature distance) or `"fast"` (Levenshtein).
 
@@ -101,12 +109,10 @@ g2p2.distance("pat", "bat")                   # 0.033
 ```python
 import g2p2
 
-m = g2p2.Model.load("data/en.g2p")
 vocab = ["knight", "night", "light", "bite", "note", "dog", "cat"]
 
-def sounds_like(word, top=3):
-    q = m.phonemize(word)
-    scored = [(w, g2p2.similarity(q, m.phonemize(w))) for w in vocab if w != word]
+def sounds_like(word, lang="en", top=3):
+    scored = [(w, g2p2.word_similarity(word, w, language=lang)) for w in vocab if w != word]
     return sorted(scored, key=lambda x: -x[1])[:top]
 
 sounds_like("nite")

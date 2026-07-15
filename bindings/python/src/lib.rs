@@ -80,8 +80,10 @@ fn distance(a: &str, b: &str, method: &str) -> f32 {
     g2p::similarity::distance(a, b, method_of(method))
 }
 
+/// Low-level native extension. The user-facing API lives in the `g2p2` Python
+/// package (which adds language-based auto-loading on top of this).
 #[pymodule]
-fn g2p2(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_class::<Model>()?;
     m.add_function(wrap_pyfunction!(similarity, m)?)?;
