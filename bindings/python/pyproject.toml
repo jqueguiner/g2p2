@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/jqueguiner/g2p"
+Repository = "https://github.com/jqueguiner/g2p2"
 
 [tool.maturin]
 manifest-path = "Cargo.toml"
