@@ -9,6 +9,8 @@ pub mod lang;
 pub mod lexicon;
 pub mod model;
 pub mod normalize;
+pub mod similarity;
 
 pub use decode::phonemize;
 pub use model::Model;
+pub use similarity::{similarity, Method};

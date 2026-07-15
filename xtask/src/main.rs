@@ -5,6 +5,7 @@
 //!   cargo run -p xtask -- say   fr bonjour
 
 mod align;
+mod bench;
 mod fetch;
 mod silver;
 mod train;
@@ -185,6 +186,7 @@ fn main() {
         }
         Some("fetch-all") => fetch::fetch_all(),
         Some("silver") if a.len() >= 2 => silver::silver_one(&a[1]),
+        Some("bench") => bench::run(a.get(1).map(|s| s.as_str()).unwrap_or("data/fr.g2p")),
         Some("build-all") => build_all(),
         // build from an explicit tsv, or default to the fetched data/wikipron/<lang>.tsv
         Some("build") if a.len() >= 2 => {

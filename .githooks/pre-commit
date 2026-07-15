@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Pre-commit gate: format, lint, test, and enforce >95% line coverage on the
+# runtime crate. Enable with:  git config core.hooksPath .githooks
+set -euo pipefail
+
+echo "pre-commit: rustfmt…"
+cargo fmt --all --check
+
+echo "pre-commit: clippy…"
+cargo clippy --workspace --all-targets -- -D warnings
+
+echo "pre-commit: tests…"
+cargo test --workspace --quiet
+
+echo "pre-commit: coverage (g2p, >95% lines)…"
+if command -v cargo-llvm-cov >/dev/null 2>&1; then
+  cargo llvm-cov -p g2p --ignore-filename-regex 'src/bin/' \
+    --summary-only --fail-under-lines 95
+else
+  echo "  ERROR: cargo-llvm-cov not installed — cannot verify coverage." >&2
+  echo "  install: cargo install cargo-llvm-cov" >&2
+  exit 1
+fi
+
+echo "pre-commit: OK"
