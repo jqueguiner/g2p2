@@ -162,21 +162,39 @@ fn build(lang: &str, gold_tsv: &str) {
             variants.entry(w).or_default().push(ipa);
         }
         let total = variants.len();
-        let mut added = 0;
+
+        // Store every gold word, not just the ones the n-gram misses.
+        //
+        // Skipping the words it already gets right looks like a free saving, but
+        // it silently picks the wrong reading whenever a word has variants. The
+        // sources list the citation form first and regional or contextual forms
+        // after -- "sept" is [sɛt, sɛpt], "huit" is [ɥit, wit, ɥɪt]. A decode
+        // matching *any* of them passed the old test, so "sept" kept the n-gram's
+        // sɛpt: attested, but not the form you want out of a dictionary.
+        //
+        // It also broke case. A word with no entry of its own resolves through
+        // decode's lowercase retry, so "Jean" (no entry, the n-gram was right)
+        // came back as lexicon["jean"] -- dʒin, the fabric.
+        //
+        // Both disappear once every word has its own key holding the first
+        // reading. The n-gram then does the one job it is good at: words the
+        // dictionary has never seen.
+        let mut pending: Vec<(String, String)> = Vec::with_capacity(total);
+        let mut ngram_agrees = 0;
         for (w, ipas) in &variants {
-            // WikiPron lists pronunciation variants; any of them is a correct
-            // decode, so only words matching none need an entry.
-            if !ipas.iter().any(|i| *i == phonemize(&model, w)) {
-                model
-                    .lexicon
-                    .insert(w.as_str().into(), ipas[0].as_str().into());
-                added += 1;
+            if ipas[0] == phonemize(&model, w) {
+                ngram_agrees += 1;
             }
+            pending.push((w.clone(), ipas[0].clone()));
         }
-        let exact = total - added;
+        let added = pending.len();
+        for (w, ipa) in pending {
+            model.lexicon.insert(w.as_str().into(), ipa.as_str().into());
+        }
+
         println!(
-            "{lang}: n-gram exact on {exact}/{total} ({:.1}%); +{added} residual lexicon entries",
-            100.0 * exact as f64 / total.max(1) as f64
+            "{lang}: {total} gold words -> {added} lexicon entries (n-gram alone agreed on {ngram_agrees}, {:.1}%)",
+            100.0 * ngram_agrees as f64 / total.max(1) as f64
         );
     }
 
