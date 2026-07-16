@@ -162,21 +162,42 @@ fn build(lang: &str, gold_tsv: &str) {
             variants.entry(w).or_default().push(ipa);
         }
         let total = variants.len();
-        let mut added = 0;
+
+        // Decide every entry against the bare n-gram, then insert. Deciding and
+        // inserting in one loop would make each decision depend on which words
+        // happened to be inserted before it, and HashMap order is not stable --
+        // the same input would not build the same model twice.
+        let mut pending: Vec<(String, String)> = Vec::new();
+        let mut proper = 0;
         for (w, ipas) in &variants {
+            // A capitalised entry is a proper noun, and a proper noun is
+            // irregular by nature: no rule derives "Bayeux" -> bajø. When the
+            // n-gram happens to land one it is luck, not competence, so store
+            // them all rather than betting on it.
+            //
+            // This is also what keeps the lowercase retry in decode::phonemize
+            // honest. A word with no entry of its own falls back to its
+            // lowercase sibling's, and the siblings can be different words:
+            // "Jean" is ʒɑ̃, "jean" is dʒin, the fabric. Giving every proper
+            // noun its own key means the retry can never answer for it.
+            let is_proper = w.chars().next().is_some_and(char::is_uppercase);
             // WikiPron lists pronunciation variants; any of them is a correct
-            // decode, so only words matching none need an entry.
-            if !ipas.iter().any(|i| *i == phonemize(&model, w)) {
-                model
-                    .lexicon
-                    .insert(w.as_str().into(), ipas[0].as_str().into());
-                added += 1;
+            // decode, so a lowercase word matching none is the only other case.
+            if is_proper {
+                proper += 1;
+            } else if ipas.iter().any(|i| *i == phonemize(&model, w)) {
+                continue;
             }
+            pending.push((w.clone(), ipas[0].clone()));
         }
-        let exact = total - added;
+        let added = pending.len();
+        for (w, ipa) in pending {
+            model.lexicon.insert(w.as_str().into(), ipa.as_str().into());
+        }
+
         println!(
-            "{lang}: n-gram exact on {exact}/{total} ({:.1}%); +{added} residual lexicon entries",
-            100.0 * exact as f64 / total.max(1) as f64
+            "{lang}: {total} gold words -> +{added} lexicon entries ({proper} proper nouns, {} n-gram misses)",
+            added - proper
         );
     }
 
