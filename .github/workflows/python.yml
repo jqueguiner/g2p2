@@ -106,9 +106,15 @@ jobs:
         with:
           packages-dir: dist-core
           skip-existing: true
-      - name: publish model packs (needs pending publishers for g2p2-models*)
-        continue-on-error: true
+      # Model data packages are published with a PyPI API token, not OIDC:
+      # a *pending* trusted publisher must be unique per (owner, repo, workflow,
+      # environment), so multiple data packages can't share one pending
+      # publisher. A token creates all of them in one shot and sidesteps that.
+      - name: publish model packs
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
           packages-dir: dist-packs
           skip-existing: true
+          attestations: false
