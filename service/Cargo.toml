@@ -1,0 +1,28 @@
+[package]
+name = "g2p2-server"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "HTTP REST service for g2p2 grapheme-to-phoneme: phonemize, language detection, phonetic similarity, alternative-name ranking"
+repository = "https://github.com/jqueguiner/g2p2"
+
+# Detach from the parent (zero-dependency) workspace: keep axum/tokio out of
+# `cargo build --workspace` at the repo root, which is intentionally dep-free.
+[workspace]
+
+[dependencies]
+# Local runtime crate (lib name is `g2p`), built with numeral expansion.
+g2p2-core = { path = "../g2p", features = ["numbers"] }
+
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+whatlang = "0.16"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"

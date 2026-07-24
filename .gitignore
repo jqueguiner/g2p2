@@ -5,6 +5,12 @@ lcov.info
 /data/*.g2p
 # Downloaded WikiPron TSVs — refetched via `xtask fetch-all`
 /data/wikipron/
+# Training-data TSVs live in OpenRunner as managed datasets, not in git:
+#   gladia/g2p2-kaikki (fr) · gladia/g2p2-lex (ja) · gladia/g2p2-silver (jw/ln/sn/so/su/tt)
+# Fetch with: openrunner datasets pull gladia/g2p2-<tier>
+/data/kaikki/
+/data/lex/
+/data/silver/
 
 # Python build artifacts
 bindings/python/target/
